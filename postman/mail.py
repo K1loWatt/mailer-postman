@@ -3,10 +3,6 @@ from dataclasses import dataclass
 
 @dataclass
 class Mail:
-    """
-    Baseclass to represent an email with a subject and body.
-    """
-
     body: str
     subject: str
 
