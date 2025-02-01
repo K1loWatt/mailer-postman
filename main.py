@@ -1,9 +1,14 @@
 import sys
 import os
 import json
-from postman.connector import Gmail
 from postman.mail import Mail
-from postman.manager import Manager
+import smtplib
+import socket
+import time
+from typing import Callable
+from dataclasses import dataclass, field
+from abc import ABC, abstractmethod
+import argparse
 
 
 def get_base_path():
@@ -23,27 +28,83 @@ def load_config() -> dict[str, str]:
     return config
 
 
-def run(msg: str, subject: str, destination: str) -> None:
+class MailServer(ABC):
+    @abstractmethod
+    def __enter__(self) -> "MailServer":
+        raise NotImplementedError
+
+    @abstractmethod
+    def send_mail(self, mail: Mail) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        raise NotImplementedError
+
+
+class SMTPServer(MailServer):
+    server: smtplib.SMTP
+
+    def __init__(self, config) -> None:
+        self.config = config
+
+    def __enter__(self) -> "SMTPServer":
+        self.server = smtplib.SMTP(self.config)
+        return self
+
+    def send_mail(self, mail: Mail) -> None:
+        self.server.starttls()
+        self.server.login(self.config.get("username"), self.config.get("pass"))
+        self.server.sendmail(
+            self.config.get("username"), destination, mail.content.encode("utf-8")
+        )
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if self.server:
+            self.server.__exit__(exc_type, exc_val, exc_tb)
+
+
+def send_mail_with_retry(mail: Mail, mail_server: MailServer) -> None:
+    while True:
+        try:
+            send_mail(mail, mail_server)
+            break
+        except socket.gaierror:
+            print("Error connecting to server, retrying in 60 seconds")
+            time.sleep(60)
+
+
+def send_mail(mail: Mail, mail_server: MailServer) -> None:
+    with mail_server as server:
+        server.send_mail(mail)
+
+
+def run(msg: str, subject: str, destination: str, retry: bool) -> None:
     config = load_config()
-    conn = Gmail(
-        config.get("username"),
-        config.get("pass"),
-        config.get("host"),
-        config.get("port"),
-        config.get("tls"),
+    mail_server = SMTPServer(config)
+    mail = Mail(msg, subject, destination)
+    send_mail(mail, mail_server) if not retry else send_mail_with_retry(
+        mail, mail_server
     )
-    manager = Manager(conn)
-    mail = Mail(msg, subject)
-    manager.send(mail, destination)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 4:
-        print("Usage: my_executable.exe <destination> <subject> <message>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Send an email using the SMTP server.")
+    parser.add_argument("destination", type=str, help="The email destination address.")
+    parser.add_argument("subject", type=str, help="The subject of the email.")
+    parser.add_argument("message", type=str, help="The message content of the email.")
+    parser.add_argument(
+        "--retry",
+        action="store_true",
+        help="Retry sending the email on failure.",
+        default=False,
+    )
 
-    destination = sys.argv[1]
-    subject = sys.argv[2]
-    msg = sys.argv[3]
+    args = parser.parse_args()
 
-    run(msg, subject, destination)
+    destination = args.destination
+    subject = args.subject
+    msg = args.message
+    retry = args.retry
+
+    run(msg, subject, destination, retry)
