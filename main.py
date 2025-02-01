@@ -13,7 +13,7 @@ def get_base_path():
         return os.path.dirname(os.path.abspath(__file__))
 
 
-def load_config():
+def load_config() -> dict[str, str]:
     base_path = get_base_path()
     config_path = os.path.join(base_path, "config.json")
 
@@ -23,7 +23,7 @@ def load_config():
     return config
 
 
-def run(msg: str, subject: str, destination: str):
+def run(msg: str, subject: str, destination: str) -> None:
     config = load_config()
     conn = Gmail(
         config.get("username"),
