@@ -1,75 +1,10 @@
-import sys
 import os
-import json
-from postman.mail import Mail
-import smtplib
-import socket
-import time
-from typing import Callable
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
+from postman.models.mail import Mail
+
 import argparse
 from dotenv import load_dotenv
-
-
-@dataclass
-class Config:
-    host: str
-    username: str
-    password: str
-    port: int
-
-
-class MailServer(ABC):
-    @abstractmethod
-    def __enter__(self) -> "MailServer":
-        raise NotImplementedError
-
-    @abstractmethod
-    def send_mail(self, mail: Mail) -> None:
-        raise NotImplementedError
-
-    @abstractmethod
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        raise NotImplementedError
-
-
-class SMTPServer(MailServer):
-    server: smtplib.SMTP
-    config: Config
-
-    def __init__(self, config) -> None:
-        self.config = config
-
-    def __enter__(self) -> "SMTPServer":
-        self.server = smtplib.SMTP(self.config.host, self.config.port)
-        return self
-
-    def send_mail(self, mail: Mail) -> None:
-        self.server.starttls()
-        self.server.login(self.config.username, self.config.password)
-        self.server.sendmail(
-            self.config.username, destination, mail.content.encode("utf-8")
-        )
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        if self.server:
-            self.server.__exit__(exc_type, exc_val, exc_tb)
-
-
-def send_mail_with_retry(mail: Mail, mail_server: MailServer) -> None:
-    while True:
-        try:
-            send_mail(mail, mail_server)
-            break
-        except socket.gaierror:
-            print("Error connecting to server, retrying in 60 seconds")
-            time.sleep(60)
-
-
-def send_mail(mail: Mail, mail_server: MailServer) -> None:
-    with mail_server as server:
-        server.send_mail(mail)
+from postman.models.mail_server import SMTPServer, Config
+from postman.services.services import send_mail, send_mail_with_retry
 
 
 def run(msg: str, subject: str, destination: str, retry: bool, config: Config) -> None:
@@ -92,8 +27,9 @@ if __name__ == "__main__":
     username = os.getenv("SMTP_USERNAME")
     password = os.getenv("SMTP_PASSWORD")
     port = os.getenv("SMTP_PORT")
-    assert smtp_server and username and password and port
-    config = Config(smtp_server, username, password, int(port))
+    tls = os.getenv("TLS")
+    assert smtp_server and username and password and port and tls
+    config = Config(smtp_server, username, password, int(port), bool(tls))
     parser = argparse.ArgumentParser(description="Send an email using the SMTP server.")
     parser.add_argument("destination", type=str, help="The email destination address.")
     parser.add_argument("subject", type=str, help="The subject of the email.")
