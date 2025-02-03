@@ -9,23 +9,15 @@ from typing import Callable
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import argparse
+from dotenv import load_dotenv
 
 
-def get_base_path():
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(sys.executable)
-    else:
-        return os.path.dirname(os.path.abspath(__file__))
-
-
-def load_config() -> dict[str, str]:
-    base_path = get_base_path()
-    config_path = os.path.join(base_path, "config.json")
-
-    with open(config_path, "r") as config_file:
-        config = json.load(config_file)
-
-    return config
+@dataclass
+class Config:
+    host: str
+    username: str
+    password: str
+    port: int
 
 
 class MailServer(ABC):
@@ -44,19 +36,20 @@ class MailServer(ABC):
 
 class SMTPServer(MailServer):
     server: smtplib.SMTP
+    config: Config
 
     def __init__(self, config) -> None:
         self.config = config
 
     def __enter__(self) -> "SMTPServer":
-        self.server = smtplib.SMTP(self.config)
+        self.server = smtplib.SMTP(self.config.host, self.config.port)
         return self
 
     def send_mail(self, mail: Mail) -> None:
         self.server.starttls()
-        self.server.login(self.config.get("username"), self.config.get("pass"))
+        self.server.login(self.config.username, self.config.password)
         self.server.sendmail(
-            self.config.get("username"), destination, mail.content.encode("utf-8")
+            self.config.username, destination, mail.content.encode("utf-8")
         )
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
@@ -79,8 +72,7 @@ def send_mail(mail: Mail, mail_server: MailServer) -> None:
         server.send_mail(mail)
 
 
-def run(msg: str, subject: str, destination: str, retry: bool) -> None:
-    config = load_config()
+def run(msg: str, subject: str, destination: str, retry: bool, config: Config) -> None:
     mail_server = SMTPServer(config)
     mail = Mail(msg, subject, destination)
     send_mail(mail, mail_server) if not retry else send_mail_with_retry(
@@ -89,6 +81,19 @@ def run(msg: str, subject: str, destination: str, retry: bool) -> None:
 
 
 if __name__ == "__main__":
+    load_dotenv()
+
+    # "username": "<mail@mail.com>",
+    # "pass": "<password>",
+    # "host": "smtp.gmail.com", #for Gmail
+    # "port": 587, #for Gmail
+
+    smtp_server = os.getenv("SMTP_SERVER")
+    username = os.getenv("SMTP_USERNAME")
+    password = os.getenv("SMTP_PASSWORD")
+    port = os.getenv("SMTP_PORT")
+    assert smtp_server and username and password and port
+    config = Config(smtp_server, username, password, int(port))
     parser = argparse.ArgumentParser(description="Send an email using the SMTP server.")
     parser.add_argument("destination", type=str, help="The email destination address.")
     parser.add_argument("subject", type=str, help="The subject of the email.")
@@ -107,4 +112,4 @@ if __name__ == "__main__":
     msg = args.message
     retry = args.retry
 
-    run(msg, subject, destination, retry)
+    run(msg, subject, destination, retry, config)
