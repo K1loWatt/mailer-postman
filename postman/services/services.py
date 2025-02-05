@@ -4,8 +4,10 @@ import socket
 import time
 from typing import Tuple
 
-def send_mail_with_retry(mail: Mail, mail_server: MailServer, number_of_retries:int, retry_delay:float) -> None:
-    
+
+def send_mail_with_retry(
+    mail: Mail, mail_server: MailServer, number_of_retries: int, retry_delay: float
+) -> None:
     for _ in range(number_of_retries):
         try:
             send_mail(mail, mail_server)
@@ -13,7 +15,7 @@ def send_mail_with_retry(mail: Mail, mail_server: MailServer, number_of_retries:
         except socket.gaierror as exec:
             print(f"Error connecting to server, retrying in {retry_delay} seconds")
             time.sleep(retry_delay)
-            if _ == number_of_retries-1:
+            if _ == number_of_retries - 1:
                 raise exec
 
 

@@ -9,7 +9,7 @@ FAKE_PASS = "pass"
 
 @dataclass
 class FakeMailServer(MailServer):
-    mail_sent:bool = False
+    mail_sent: bool = False
 
     def __enter__(self):
         return self

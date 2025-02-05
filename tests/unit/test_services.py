@@ -8,22 +8,19 @@ from tests.conftest import FakeMailServer
 
 
 def test_send_mail():
-    
     mail = Mail("Hello", "Test", "destination")
     mail_server = FakeMailServer()
     send_mail(mail, mail_server)
     assert mail_server.mail_sent == True
-    
+
+
 def test_send_mail_with_retry():
-    
     mail = Mail("Hello", "Test", "destination")
     mail_server = FakeMailServer()
-    
-    mail_server.send_mail = MagicMock(side_effect=socket.gaierror)    
-    
+
+    mail_server.send_mail = MagicMock(side_effect=socket.gaierror)
+
     with pytest.raises(socket.gaierror):
-        send_mail_with_retry(mail, mail_server, 10,0.01)
-        
+        send_mail_with_retry(mail, mail_server, 10, 0.01)
+
     assert mail_server.send_mail.call_count == 10
-    
-   
