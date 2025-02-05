@@ -7,11 +7,19 @@ from postman.models.mail_server import SMTPServer, Config
 from postman.services.services import send_mail, send_mail_with_retry
 
 
-def run(msg: str, subject: str, destination: str, retry: bool, config: Config) -> None:
+def run(
+    msg: str,
+    subject: str,
+    destination: str,
+    retry: bool,
+    number_of_retries: int,
+    retry_delay: int,
+    config: Config,
+) -> None:
     mail_server = SMTPServer(config)
     mail = Mail(msg, subject, destination)
     send_mail(mail, mail_server) if not retry else send_mail_with_retry(
-        mail, mail_server
+        mail, mail_server, number_of_retries, retry_delay
     )
 
 
@@ -36,16 +44,30 @@ if __name__ == "__main__":
     parser.add_argument("message", type=str, help="The message content of the email.")
     parser.add_argument(
         "--retry",
+        help="Number of retries to send the email if failed.",
         action="store_true",
-        help="Retry sending the email on failure.",
         default=False,
     )
 
+    parser.add_argument(
+        "--number-of-retries",
+        type=int,
+        help="Number of retries to send the email if failed.",
+        default=50,
+    )
+    parser.add_argument(
+        "--retry-delay",
+        type=int,
+        help="Retry sending the email if failed.",
+        default=60,
+    )
     args = parser.parse_args()
 
     destination = args.destination
     subject = args.subject
     msg = args.message
     retry = args.retry
+    number_of_retries = args.number_of_retries
+    retry_delay = args.retry_delay
 
-    run(msg, subject, destination, retry, config)
+    run(msg, subject, destination, retry, number_of_retries, retry_delay, config)
