@@ -1,4 +1,5 @@
-from postman.connector import Connector
+from postman.models.mail_server import MailServer
+from postman.models.mail import Mail
 from dataclasses import dataclass
 
 
@@ -7,15 +8,14 @@ FAKE_PASS = "pass"
 
 
 @dataclass
-class FakeConn(Connector):
-    sended = False
+class FakeMailServer(MailServer):
+    mail_sent: bool = False
 
-    def connect(self):
-        self.is_connected = True
+    def __enter__(self):
+        return self
 
-    def disconnect(self):
-        self.is_connected = False
+    def send_mail(self, mail: Mail):
+        self.mail_sent = True
 
-    def send(self, mail, destination):
-        self.sended = True
-        return {}
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass

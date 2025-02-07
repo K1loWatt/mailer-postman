@@ -1,7 +1,0 @@
-{
-    "username": "javier4657@gmail.com",
-    "pass": "<password>",
-    "host": "smtp.gmail.com",
-    "port": 587,
-    "tls": true
-}
